@@ -22,7 +22,7 @@ Supports link expiry, click analytics, and IP-based rate limiting.
 | Layer | Technology |
 |-------|------------|
 | Language | Java 17 |
-| Framework | Spring Boot 3.2 |
+| Framework | Spring Boot 3.5 |
 | Database | H2 (dev) / MySQL (prod) |
 | ORM | Spring Data JPA / Hibernate |
 | Validation | Jakarta Validation |
