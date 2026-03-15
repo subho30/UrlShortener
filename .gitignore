@@ -1,0 +1,23 @@
+# Maven
+target/
+*.class
+*.jar
+*.war
+
+# IDE — Eclipse
+.classpath
+.project
+.settings/
+.metadata/
+
+# IDE — IntelliJ
+.idea/
+*.iml
+
+# Spring Boot
+*.log
+application-local.properties
+
+# OS
+.DS_Store
+Thumbs.db
