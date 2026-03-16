@@ -23,10 +23,11 @@ Supports link expiry, click analytics, and IP-based rate limiting.
 |-------|------------|
 | Language | Java 17 |
 | Framework | Spring Boot 3.5 |
-| Database | H2 (dev) / MySQL (prod) |
+| Database | MySQL 8.0 |
 | ORM | Spring Data JPA / Hibernate |
 | Validation | Jakarta Validation |
 | Build Tool | Maven |
+| Containerisation | Docker + Docker Compose |
 | Utilities | Lombok |
 
 ---
@@ -122,31 +123,36 @@ app.default-expiry-days=30
 ## 🏃 Running Locally
 
 ### Prerequisites
-- Java 17+
-- Maven 3.6+
+- Docker + Docker Compose
 
 ### Steps
 ```bash
 # Clone the repo
-git clone https://github.com/subho30/urlshortener.git
-cd urlshortener
+git clone https://github.com/subho30/UrlShortener.git
+cd UrlShortener
 
-# Run the app
-./mvnw spring-boot:run
+# Start everything with one command
+docker-compose up --build
 ```
-
 App starts at `http://localhost:8080`
+MySQL runs on `localhost:3306`
 
-H2 Console available at `http://localhost:8080/h2-console`
-- JDBC URL: `jdbc:h2:mem:urlshortenerdb`
-- Username: `sa`
-- Password: *(leave blank)*
 
 ---
 
 ## 🐳 Production Setup (MySQL + Docker)
 
-*Coming soon — Docker Compose setup with MySQL for production use.*
+## 🐳 Docker Setup
+
+The entire stack runs with a single command:
+```bash
+docker-compose up --build
+```
+
+This spins up:
+- **MySQL 8.0** on port 3306 with persistent volume
+- **Spring Boot app** on port 8080
+- Auto-creates database and tables on first run
 
 ---
 
@@ -181,13 +187,13 @@ All errors return a consistent JSON structure:
 ---
 
 ## 🗺️ Roadmap
-
-- [ ] MySQL + Docker Compose setup
-- [ ] Redis caching for high-frequency redirects
-- [ ] Custom aliases (user-defined short codes)
-- [ ] Soft delete / deactivate links
+- [x] MySQL + Docker Compose setup
 - [ ] Swagger / OpenAPI documentation
-
+- [ ] Redis caching for high-frequency redirects
+- [ ] Spring AI — safety check, link summary, categorisation
+- [ ] Link preview page before redirect
+- [ ] Custom aliases
+- [ ] Deploy to Railway
 ---
 
 ## 👤 Author
