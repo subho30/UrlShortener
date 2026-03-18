@@ -121,7 +121,7 @@ app.default-expiry-days=30
 ---
 
 ## 🏃 Running Locally
-
+Swagger UI available at http://localhost:8080/swagger-ui/index.html
 ### Prerequisites
 - Docker + Docker Compose
 
@@ -188,7 +188,7 @@ All errors return a consistent JSON structure:
 
 ## 🗺️ Roadmap
 - [x] MySQL + Docker Compose setup
-- [ ] Swagger / OpenAPI documentation
+- [x] Swagger / OpenAPI documentation
 - [ ] Redis caching for high-frequency redirects
 - [ ] Spring AI — safety check, link summary, categorisation
 - [ ] Link preview page before redirect
