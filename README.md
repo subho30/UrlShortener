@@ -2,18 +2,21 @@
 
 A safety-first URL shortening service with AI-powered link previews. Know where you're going before you click.
 
-Built with Java, Spring Boot, Spring AI, MySQL, and Docker.
+Built with Java, Spring Boot, Spring AI, MySQL, Redis, and Docker.
 
 ---
 
 ## 🚀 Features
 
 - **Shorten URLs** — Unique 6-character Base62 short codes across 56 billion combinations
+- **Custom Aliases** — Choose your own short code (e.g. `/my-github`)
 - **AI Safety Check** — Every link scanned for malicious or spammy content before saving
 - **AI Link Preview** — Visitors see title, summary, category, tags, and safety score before redirecting
 - **Smart Expiry** — AI suggests expiry duration based on content type (news vs docs vs profiles)
 - **Click Analytics** — Hit count, creation time, last accessed, expiry tracking per link
+- **Redis Caching** — Sub-millisecond redirects for popular links
 - **Rate Limiting** — 10 shorten requests per IP per minute via token bucket
+- **Soft Delete** — Deactivate links without losing analytics history
 - **Input Validation** — Rejects malformed or non-HTTP/HTTPS URLs
 - **Global Error Handling** — Consistent JSON error responses
 
@@ -27,6 +30,7 @@ Built with Java, Spring Boot, Spring AI, MySQL, and Docker.
 | Framework | Spring Boot 3.2 |
 | AI | Spring AI + Ollama (Llama 3.2) |
 | Database | MySQL 8.0 |
+| Cache | Redis 7 |
 | ORM | Spring Data JPA / Hibernate |
 | Templating | Thymeleaf |
 | Containerisation | Docker + Docker Compose |
@@ -50,7 +54,7 @@ Step 2 — Content Enrichment (Llama 3.2)
   → title, summary, category, tags
   → suggestedExpiryDays + reason
         ↓
-Saved to MySQL + returned in response
+Saved to MySQL + cached in Redis + returned in response
 ```
 
 ---
@@ -88,6 +92,7 @@ src/main/java/com/subho/urlshortner/
 │   ├── UrlShortenerService.java     ← Core business logic
 │   ├── AiEnrichmentService.java     ← Spring AI pipeline
 │   ├── PageFetcherService.java      ← Page content fetcher
+│   ├── RedisCacheService.java       ← Redis cache operations
 │   └── RateLimiterService.java      ← IP-based rate limiting
 ├── repository/
 │   └── UrlMappingRepository.java    ← Database queries
@@ -100,10 +105,15 @@ src/main/java/com/subho/urlshortner/
     ├── GlobalExceptionHandler.java
     ├── UrlNotFoundException.java
     ├── UrlUnsafeException.java
+    ├── CustomAliasAlreadyTakenException.java
     └── RateLimitException.java
 
 src/main/resources/templates/
 └── preview.html                     ← Thymeleaf preview page
+
+src/test/java/com/subho/urlshortner/
+└── service/
+    └── UrlShortenerServiceTest.java ← 12 unit tests
 ```
 
 ---
@@ -118,20 +128,21 @@ POST /api/shorten
 ```json
 {
     "originalUrl": "https://www.example.com/some/long/url",
+    "customAlias": "my-link",
     "expiryDays": 7
 }
 ```
 **Response — 201 Created:**
 ```json
 {
-    "shortCode": "aB3xYz",
-    "shortUrl": "http://localhost:8080/aB3xYz",
+    "shortCode": "my-link",
+    "shortUrl": "http://localhost:8080/my-link",
     "originalUrl": "https://www.example.com/some/long/url",
     "createdAt": "2026-03-22T10:30:00",
     "expiresAt": "2026-03-29T10:30:00",
     "hitCount": 0,
     "title": "Example Domain",
-    "summary": "A simple example webpage for demonstration purposes.",
+    "summary": "A simple example webpage.",
     "category": "Technology",
     "tags": "Example,Web,Demo",
     "safetyStatus": "SAFE",
@@ -159,10 +170,16 @@ GET /go/{shortCode}
 ```
 Skips preview and redirects directly. Use for programmatic access.
 
-### Analytics
+### Get Analytics
 ```
 GET /api/analytics/{shortCode}
 ```
+
+### Deactivate a Link
+```
+DELETE /api/links/{shortCode}
+```
+Soft deletes a link — stops working but analytics and history preserved.
 
 ---
 
@@ -174,6 +191,7 @@ GET /api/analytics/{shortCode}
 
 ### Setup Ollama
 ```bash
+# Mac
 brew install ollama
 ollama pull llama3.2
 brew services start ollama
@@ -225,8 +243,30 @@ spring.ai.ollama.chat.model=llama3.2
 | Short code not found / expired | 404 |
 | Invalid URL format | 400 |
 | Unsafe URL detected | 400 |
+| Custom alias already taken | 409 |
 | Rate limit exceeded | 429 |
 | Server error | 500 |
+
+---
+
+## 🧪 Tests
+```bash
+./mvnw test -Dspring.profiles.active=test
+```
+
+12 unit tests covering:
+- URL shortening with AI enrichment
+- Custom alias — success + conflict detection
+- Unsafe URL rejection
+- AI suggested expiry
+- Cache hit — skips database
+- Cache miss — hits database + populates cache
+- Unknown short code → 404
+- Soft delete + cache eviction
+- Short code length and format validation
+- Short code collision retry logic
+
+All tests run in under 500ms with H2 in-memory database and mocked Redis/AI — no external dependencies needed.
 
 ---
 
@@ -238,8 +278,10 @@ spring.ai.ollama.chat.model=llama3.2
 - [x] Swagger / OpenAPI documentation
 - [x] Spring AI — safety check, summarisation, categorisation
 - [x] AI-powered link preview page
-- [ ] Redis caching for high-frequency redirects
-- [ ] Custom aliases
+- [x] Redis caching
+- [x] Custom aliases
+- [x] Soft delete
+- [x] Unit tests — 12 tests, <500ms
 - [ ] Deploy to Railway
 - [ ] React dashboard UI
 
