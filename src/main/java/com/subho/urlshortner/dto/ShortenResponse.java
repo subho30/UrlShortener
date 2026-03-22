@@ -19,4 +19,12 @@ public class ShortenResponse {
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
     private Long hitCount;
+    private String summary;
+    private String title;
+    private String category;
+    private String tags;
+    private String safetyStatus;
+    private Integer safetyScore;
+    private Integer suggestedExpiryDays;
+    private String expiryReason;
 }

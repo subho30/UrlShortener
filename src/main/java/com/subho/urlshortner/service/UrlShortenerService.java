@@ -1,6 +1,6 @@
 package com.subho.urlshortner.service;
 
-
+import com.subho.urlshortner.exception.UrlUnsafeException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +14,7 @@ import com.subho.urlshortner.model.UrlMapping;
 import com.subho.urlshortner.repository.UrlMappingRepository;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Random;
 
 @Service
@@ -22,6 +23,8 @@ import java.util.Random;
 public class UrlShortenerService {
 
     private final UrlMappingRepository urlMappingRepository;
+    private final AiEnrichmentService aiEnrichmentService;
+    private final PageFetcherService pageFetcherService;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -33,21 +36,46 @@ public class UrlShortenerService {
     private int defaultExpiryDays;
 
     private static final String BASE62_CHARS =
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     // ── Shorten a URL ──
     public ShortenResponse shortenUrl(ShortenRequest request, String clientIp) {
         String shortCode = generateUniqueShortCode();
 
-        int expiryDays = (request.getExpiryDays() != null && request.getExpiryDays() > 0)
-                ? request.getExpiryDays()
-                : defaultExpiryDays;
+        // Fetch page content for AI enrichment
+        String pageContent = pageFetcherService.fetchPageContent(request.getOriginalUrl());
+
+        // Run AI enrichment
+        Map<String, Object> aiData = aiEnrichmentService.enrichUrl(request.getOriginalUrl(), pageContent);
+
+        // Check if URL is unsafe — reject immediately
+        String safetyStatus = (String) aiData.getOrDefault("safetyStatus", "SAFE");
+        if ("UNSAFE".equals(safetyStatus)) {
+            throw new UrlUnsafeException("URL flagged as unsafe: " +
+                    aiData.getOrDefault("safetyReason", "Malicious or spammy content detected"));
+        }
+
+        // Use AI suggested expiry if user didn't provide one
+        int expiryDays;
+        if (request.getExpiryDays() != null && request.getExpiryDays() > 0) {
+            expiryDays = request.getExpiryDays();
+        } else {
+            expiryDays = (Integer) aiData.getOrDefault("suggestedExpiryDays", defaultExpiryDays);
+        }
 
         UrlMapping urlMapping = UrlMapping.builder()
                 .shortCode(shortCode)
                 .originalUrl(request.getOriginalUrl())
                 .expiresAt(LocalDateTime.now().plusDays(expiryDays))
                 .createdByIp(clientIp)
+                .summary((String) aiData.getOrDefault("summary", null))
+                .title((String) aiData.getOrDefault("title", null))
+                .category((String) aiData.getOrDefault("category", null))
+                .tags((String) aiData.getOrDefault("tags", null))
+                .safetyStatus(safetyStatus)
+                .safetyScore((Integer) aiData.getOrDefault("safetyScore", null))
+                .suggestedExpiryDays((Integer) aiData.getOrDefault("suggestedExpiryDays", null))
+                .expiryReason((String) aiData.getOrDefault("expiryReason", null))
                 .build();
 
         urlMappingRepository.save(urlMapping);
@@ -112,6 +140,14 @@ public class UrlShortenerService {
                 .createdAt(urlMapping.getCreatedAt())
                 .expiresAt(urlMapping.getExpiresAt())
                 .hitCount(urlMapping.getHitCount())
+                .summary(urlMapping.getSummary())
+                .title(urlMapping.getTitle())
+                .category(urlMapping.getCategory())
+                .tags(urlMapping.getTags())
+                .safetyStatus(urlMapping.getSafetyStatus())
+                .safetyScore(urlMapping.getSafetyScore())
+                .suggestedExpiryDays(urlMapping.getSuggestedExpiryDays())
+                .expiryReason(urlMapping.getExpiryReason())
                 .build();
     }
 }

@@ -54,6 +54,12 @@ public class GlobalExceptionHandler {
                 "Something went wrong. Please try again.");
     }
 
+    @ExceptionHandler(UrlUnsafeException.class)
+    public ResponseEntity<Map<String, Object>> handleUrlUnsafeException(
+            UrlUnsafeException ex) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
     private ResponseEntity<Map<String, Object>> buildErrorResponse(
             HttpStatus status, String message) {
         Map<String, Object> response = new HashMap<>();

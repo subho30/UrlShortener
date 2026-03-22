@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="'Link Preview — ' + ${data.title}">Link Preview</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .card {
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 560px;
+            width: 100%;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 28px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .link-icon { font-size: 28px; }
+
+        .header-text h1 {
+            font-size: 13px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .header-text h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #f1f5f9;
+            margin-top: 2px;
+        }
+
+        .domain {
+            font-size: 14px;
+            color: #3b82f6;
+            margin-bottom: 20px;
+            word-break: break-all;
+        }
+
+        .summary {
+            font-size: 15px;
+            color: #94a3b8;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 13px;
+            color: #cbd5e1;
+        }
+
+        .safety-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+        }
+
+        .safety-text {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 28px;
+        }
+
+        .tag {
+            background: #1d4ed8;
+            color: #bfdbfe;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-continue {
+            flex: 1;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: background 0.2s;
+            display: block;
+        }
+
+        .btn-continue:hover { background: #2563eb; }
+
+        .btn-back {
+            background: #334155;
+            color: #94a3b8;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 10px;
+            font-size: 15px;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: background 0.2s;
+            display: block;
+        }
+
+        .btn-back:hover { background: #475569; }
+
+        .expiry {
+            font-size: 12px;
+            color: #475569;
+            text-align: center;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+
+    <!-- Header -->
+    <div class="header">
+        <div class="link-icon">🔗</div>
+        <div class="header-text">
+            <h1>Link Preview</h1>
+            <h2 th:text="${data.title} ?: 'Unknown Title'">Title</h2>
+        </div>
+    </div>
+
+    <!-- Domain -->
+    <div class="domain">
+        🌐 <span th:text="${domain}">domain.com</span>
+    </div>
+
+    <!-- Summary -->
+    <div class="summary"
+         th:text="${data.summary} ?: 'No summary available'">
+        Summary goes here
+    </div>
+
+    <!-- Meta -->
+    <div class="meta">
+        <div class="meta-item">
+            📂 <span th:text="${data.category} ?: 'Other'">Category</span>
+        </div>
+        <div class="meta-item">
+            👁️ <span th:text="${data.hitCount} + ' clicks'">0 clicks</span>
+        </div>
+        <div class="meta-item" th:if="${data.expiresAt != null}">
+            ⏳ Expires <span th:text="${#temporals.format(data.expiresAt, 'MMM dd, yyyy')}">Date</span>
+        </div>
+    </div>
+
+    <!-- Safety Badge -->
+    <div class="safety-badge"
+         th:style="'border-left: 3px solid ' + ${safetyColor} + '; border-radius: 8px;'">
+        <span th:text="${safetyIcon}">✅</span>
+        <span class="safety-text"
+              th:text="${safetyText}"
+              th:style="'color: ' + ${safetyColor}">
+                Safe to visit
+            </span>
+    </div>
+
+    <!-- Tags -->
+    <div class="tags" th:if="${data.tags != null and !data.tags.isEmpty()}">
+            <span class="tag"
+                  th:each="tag : ${#strings.arraySplit(data.tags, ',')}"
+                  th:text="${#strings.trim(tag)}">
+                Tag
+            </span>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions">
+        <a th:href="'/go/' + ${data.shortCode}" class="btn-continue">
+            Continue to site →
+        </a>
+        <a href="javascript:history.back()" class="btn-back">
+            Go Back
+        </a>
+    </div>
+
+    <!-- Expiry Reason -->
+    <div class="expiry"
+         th:if="${data.expiryReason != null}"
+         th:text="'💡 ' + ${data.expiryReason}">
+    </div>
+
+</div>
+</body>
+</html>
