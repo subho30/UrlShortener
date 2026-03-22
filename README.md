@@ -1,19 +1,21 @@
 # 🔗 URL Shortener
 
-A production-grade URL shortening service built with Java and Spring Boot.
-Supports link expiry, click analytics, and IP-based rate limiting.
+A safety-first URL shortening service with AI-powered link previews. Know where you're going before you click.
+
+Built with Java, Spring Boot, Spring AI, MySQL, and Docker.
 
 ---
 
 ## 🚀 Features
 
-- **Shorten URLs** — Generate a unique 6-character Base62 short code for any URL
-- **Redirect** — Instantly redirect short URLs to their original destination
-- **Link Expiry** — Links automatically expire after a configurable number of days
-- **Click Analytics** — Track hit count, creation time, and last accessed time per link
-- **Rate Limiting** — Max 10 shorten requests per IP per minute (in-memory, no Redis needed)
-- **Input Validation** — Rejects malformed or non-HTTP/HTTPS URLs at the API layer
-- **Global Error Handling** — Consistent JSON error responses across all failure scenarios
+- **Shorten URLs** — Unique 6-character Base62 short codes across 56 billion combinations
+- **AI Safety Check** — Every link scanned for malicious or spammy content before saving
+- **AI Link Preview** — Visitors see title, summary, category, tags, and safety score before redirecting
+- **Smart Expiry** — AI suggests expiry duration based on content type (news vs docs vs profiles)
+- **Click Analytics** — Hit count, creation time, last accessed, expiry tracking per link
+- **Rate Limiting** — 10 shorten requests per IP per minute via token bucket
+- **Input Validation** — Rejects malformed or non-HTTP/HTTPS URLs
+- **Global Error Handling** — Consistent JSON error responses
 
 ---
 
@@ -22,35 +24,86 @@ Supports link expiry, click analytics, and IP-based rate limiting.
 | Layer | Technology |
 |-------|------------|
 | Language | Java 17 |
-| Framework | Spring Boot 3.5 |
+| Framework | Spring Boot 3.2 |
+| AI | Spring AI + Ollama (Llama 3.2) |
 | Database | MySQL 8.0 |
 | ORM | Spring Data JPA / Hibernate |
-| Validation | Jakarta Validation |
-| Build Tool | Maven |
+| Templating | Thymeleaf |
 | Containerisation | Docker + Docker Compose |
+| API Docs | Swagger / OpenAPI |
+| Build Tool | Maven |
 | Utilities | Lombok |
+
+---
+
+## 🤖 How the AI Pipeline Works
+```
+POST /api/shorten
+        ↓
+Step 1 — Safety Check (Llama 3.2)
+  "Is this URL malicious or spammy?"
+  → safetyStatus: SAFE/UNSAFE
+  → safetyScore: 0-100
+        ↓ (UNSAFE → reject 400)
+Step 2 — Content Enrichment (Llama 3.2)
+  Fetch page → analyse content
+  → title, summary, category, tags
+  → suggestedExpiryDays + reason
+        ↓
+Saved to MySQL + returned in response
+```
+
+---
+
+## 👁️ Link Preview Experience
+
+When someone visits a short link instead of blindly redirecting they see:
+```
+┌─────────────────────────────────┐
+│  🔗 Link Preview                │
+│  GitHub Profile                 │
+│                                 │
+│  🌐 github.com                  │
+│  View subho30's GitHub profile  │
+│                                 │
+│  📂 Technology  👁️ 0 clicks    │
+│  ⏳ Expires Apr 21, 2026        │
+│                                 │
+│  ✅ Safe to visit (95/100)      │
+│                                 │
+│  🏷️ Java  Spring Boot  AI      │
+│                                 │
+│  [Continue to site →] [Go Back] │
+└─────────────────────────────────┘
+```
 
 ---
 
 ## 📐 Architecture
 ```
-src/main/java/com/subho/urlshortener/
+src/main/java/com/subho/urlshortner/
 ├── controller/
-│   └── UrlController.java         ← REST endpoints
+│   └── UrlController.java           ← REST endpoints + preview page
 ├── service/
-│   ├── UrlShortenerService.java   ← Core business logic
-│   └── RateLimiterService.java    ← IP-based rate limiting
+│   ├── UrlShortenerService.java     ← Core business logic
+│   ├── AiEnrichmentService.java     ← Spring AI pipeline
+│   ├── PageFetcherService.java      ← Page content fetcher
+│   └── RateLimiterService.java      ← IP-based rate limiting
 ├── repository/
-│   └── UrlMappingRepository.java  ← Database queries
+│   └── UrlMappingRepository.java    ← Database queries
 ├── model/
-│   └── UrlMapping.java            ← JPA entity
+│   └── UrlMapping.java              ← JPA entity
 ├── dto/
-│   ├── ShortenRequest.java        ← Input DTO with validation
-│   └── ShortenResponse.java       ← Output DTO
+│   ├── ShortenRequest.java          ← Input DTO with validation
+│   └── ShortenResponse.java         ← Output DTO
 └── exception/
     ├── GlobalExceptionHandler.java
     ├── UrlNotFoundException.java
+    ├── UrlUnsafeException.java
     └── RateLimitException.java
+
+src/main/resources/templates/
+└── preview.html                     ← Thymeleaf preview page
 ```
 
 ---
@@ -61,10 +114,10 @@ src/main/java/com/subho/urlshortener/
 ```
 POST /api/shorten
 ```
-**Request Body:**
+**Request:**
 ```json
 {
-    "originalUrl": "https://www.example.com/some/very/long/url",
+    "originalUrl": "https://www.example.com/some/long/url",
     "expiryDays": 7
 }
 ```
@@ -73,127 +126,123 @@ POST /api/shorten
 {
     "shortCode": "aB3xYz",
     "shortUrl": "http://localhost:8080/aB3xYz",
-    "originalUrl": "https://www.example.com/some/very/long/url",
-    "createdAt": "2026-03-15T10:30:00",
-    "expiresAt": "2026-03-22T10:30:00",
-    "hitCount": 0
+    "originalUrl": "https://www.example.com/some/long/url",
+    "createdAt": "2026-03-22T10:30:00",
+    "expiresAt": "2026-03-29T10:30:00",
+    "hitCount": 0,
+    "title": "Example Domain",
+    "summary": "A simple example webpage for demonstration purposes.",
+    "category": "Technology",
+    "tags": "Example,Web,Demo",
+    "safetyStatus": "SAFE",
+    "safetyScore": 97,
+    "suggestedExpiryDays": 30,
+    "expiryReason": "Static content remains relevant long-term"
 }
 ```
 
----
+### Preview Page
+```
+GET /preview/{shortCode}
+```
+Returns HTML preview page with AI-generated link information.
 
-### Redirect to Original URL
+### Redirect (via preview)
 ```
 GET /{shortCode}
 ```
-**Response — 302 Found**
-Redirects to the original URL. Returns `404` if code not found or expired.
+Redirects to preview page first.
 
----
+### Direct Redirect (skip preview)
+```
+GET /go/{shortCode}
+```
+Skips preview and redirects directly. Use for programmatic access.
 
-### Get Link Analytics
+### Analytics
 ```
 GET /api/analytics/{shortCode}
-```
-**Response — 200 OK:**
-```json
-{
-    "shortCode": "aB3xYz",
-    "shortUrl": "http://localhost:8080/aB3xYz",
-    "originalUrl": "https://www.example.com/some/very/long/url",
-    "createdAt": "2026-03-15T10:30:00",
-    "expiresAt": "2026-03-22T10:30:00",
-    "hitCount": 42
-}
-```
-
----
-
-## ⚙️ Configuration
-
-All configurable values live in `application.properties`:
-```properties
-app.base-url=http://localhost:8080
-app.short-code-length=6
-app.default-expiry-days=30
 ```
 
 ---
 
 ## 🏃 Running Locally
-Swagger UI available at http://localhost:8080/swagger-ui/index.html
+
 ### Prerequisites
 - Docker + Docker Compose
+- [Ollama](https://ollama.com) with Llama 3.2
 
-### Steps
+### Setup Ollama
 ```bash
-# Clone the repo
+brew install ollama
+ollama pull llama3.2
+brew services start ollama
+```
+
+### Run the App
+```bash
 git clone https://github.com/subho30/UrlShortener.git
 cd UrlShortener
-
-# Start everything with one command
 docker-compose up --build
 ```
-App starts at `http://localhost:8080`
-MySQL runs on `localhost:3306`
 
+App starts at `http://localhost:8080`
+Swagger UI at `http://localhost:8080/swagger-ui/index.html`
 
 ---
 
-## 🐳 Production Setup (MySQL + Docker)
-
-## 🐳 Docker Setup
-
-The entire stack runs with a single command:
-```bash
-docker-compose up --build
+## ⚙️ Configuration
+```properties
+app.base-url=http://localhost:8080
+app.short-code-length=6
+app.default-expiry-days=30
+spring.ai.ollama.base-url=http://host.docker.internal:11434
+spring.ai.ollama.chat.model=llama3.2
 ```
-
-This spins up:
-- **MySQL 8.0** on port 3306 with persistent volume
-- **Spring Boot app** on port 8080
-- Auto-creates database and tables on first run
 
 ---
 
 ## 🔒 Rate Limiting
 
-The `POST /api/shorten` endpoint is rate limited per IP address:
-- **Max requests:** 10 per minute
-- **Response when exceeded:** `429 Too Many Requests`
-- **Implementation:** In-memory sliding window via `ConcurrentHashMap`
+- Max 10 requests/minute per IP on `POST /api/shorten`
+- Returns `429 Too Many Requests` when exceeded
+- In-memory token bucket via `ConcurrentHashMap`
 
 ---
 
 ## ❌ Error Responses
-
-All errors return a consistent JSON structure:
 ```json
 {
-    "timestamp": "2026-03-15T10:30:00",
-    "status": 404,
-    "error": "Not Found",
-    "message": "Short URL not found or expired: aB3xYz"
+    "timestamp": "2026-03-22T10:30:00",
+    "status": 400,
+    "error": "Bad Request",
+    "message": "URL flagged as unsafe: Suspicious domain, potential phishing site"
 }
 ```
 
 | Scenario | HTTP Status |
 |----------|-------------|
-| Short code not found / expired | 404 Not Found |
-| Invalid URL format | 400 Bad Request |
-| Rate limit exceeded | 429 Too Many Requests |
-| Server error | 500 Internal Server Error |
+| Short code not found / expired | 404 |
+| Invalid URL format | 400 |
+| Unsafe URL detected | 400 |
+| Rate limit exceeded | 429 |
+| Server error | 500 |
 
 ---
 
 ## 🗺️ Roadmap
-- [x] MySQL + Docker Compose setup
+
+- [x] Core URL shortening — Base62, expiry, analytics
+- [x] Rate limiting
+- [x] MySQL + Docker Compose
 - [x] Swagger / OpenAPI documentation
+- [x] Spring AI — safety check, summarisation, categorisation
+- [x] AI-powered link preview page
 - [ ] Redis caching for high-frequency redirects
-- [ ] Spring AI — safety check, link summary, categorisation
-- [ ] Link preview page before redirect
 - [ ] Custom aliases
 - [ ] Deploy to Railway
+- [ ] React dashboard UI
+
 ---
 
 ## 👤 Author
