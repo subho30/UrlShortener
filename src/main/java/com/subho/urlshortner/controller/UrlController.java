@@ -20,6 +20,10 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+
 @Controller
 @Slf4j
 @RequiredArgsConstructor
@@ -109,6 +113,23 @@ public class UrlController {
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.LOCATION, originalUrl);
         return ResponseEntity.status(HttpStatus.FOUND).headers(headers).build();
+    }
+
+    // ── Deactivate a short link (soft delete) ──
+    @Operation(summary = "Deactivate a short link", description = "Soft deletes a short link — it stops working but analytics and history are preserved.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Link deactivated successfully"),
+            @ApiResponse(responseCode = "404", description = "Short code not found")
+    })
+    @ResponseBody
+    @DeleteMapping("/api/links/{shortCode}")
+    public ResponseEntity<Map<String, Object>> deactivateUrl(@PathVariable String shortCode) {
+        urlShortenerService.deactivateUrl(shortCode);
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Link '" + shortCode + "' has been deactivated successfully");
+        response.put("shortCode", shortCode);
+        response.put("timestamp", LocalDateTime.now());
+        return ResponseEntity.ok(response);
     }
 
     // ── Extract real client IP ──

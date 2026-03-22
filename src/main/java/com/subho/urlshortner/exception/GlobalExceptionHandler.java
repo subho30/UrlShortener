@@ -60,6 +60,12 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler(CustomAliasAlreadyTakenException.class)
+    public ResponseEntity<Map<String, Object>> handleCustomAliasAlreadyTakenException(
+            CustomAliasAlreadyTakenException ex) {
+        return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
     private ResponseEntity<Map<String, Object>> buildErrorResponse(
             HttpStatus status, String message) {
         Map<String, Object> response = new HashMap<>();

@@ -1,5 +1,7 @@
 package com.subho.urlshortner.service;
 
+import com.subho.urlshortner.dto.ShortenResponse;
+import com.subho.urlshortner.exception.CustomAliasAlreadyTakenException;
 import com.subho.urlshortner.exception.UrlUnsafeException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,7 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.subho.urlshortner.dto.ShortenRequest;
-import com.subho.urlshortner.dto.ShortenResponse;
 import com.subho.urlshortner.exception.UrlNotFoundException;
 import com.subho.urlshortner.model.UrlMapping;
 import com.subho.urlshortner.repository.UrlMappingRepository;
@@ -25,6 +26,7 @@ public class UrlShortenerService {
     private final UrlMappingRepository urlMappingRepository;
     private final AiEnrichmentService aiEnrichmentService;
     private final PageFetcherService pageFetcherService;
+    private final RedisCacheService redisCacheService;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -40,7 +42,19 @@ public class UrlShortenerService {
 
     // ── Shorten a URL ──
     public ShortenResponse shortenUrl(ShortenRequest request, String clientIp) {
-        String shortCode = generateUniqueShortCode();
+
+        // Custom alias or generate random short code
+        String shortCode;
+        if (request.getCustomAlias() != null && !request.getCustomAlias().isBlank()) {
+            if (urlMappingRepository.existsByShortCode(request.getCustomAlias())) {
+                throw new CustomAliasAlreadyTakenException(
+                        "Custom alias '" + request.getCustomAlias() + "' is already taken. Please choose another.");
+            }
+            shortCode = request.getCustomAlias();
+            log.info("Using custom alias: {}", shortCode);
+        } else {
+            shortCode = generateUniqueShortCode();
+        }
 
         // Fetch page content for AI enrichment
         String pageContent = pageFetcherService.fetchPageContent(request.getOriginalUrl());
@@ -81,19 +95,35 @@ public class UrlShortenerService {
         urlMappingRepository.save(urlMapping);
         log.info("Shortened URL: {} -> {}", request.getOriginalUrl(), shortCode);
 
-        return buildResponse(urlMapping);
+        // Cache immediately after saving
+        ShortenResponse response = buildResponse(urlMapping);
+        redisCacheService.cacheUrl(shortCode, response);
+        return response;
     }
 
     // ── Resolve a short code to original URL ──
     @Transactional
     public String resolveShortCode(String shortCode) {
+
+        // Check Redis cache first
+        ShortenResponse cached = redisCacheService.getCachedUrl(shortCode);
+        if (cached != null) {
+            urlMappingRepository.incrementHitCount(shortCode, LocalDateTime.now());
+            log.info("Cache hit for short code: {}", shortCode);
+            return cached.getOriginalUrl();
+        }
+
+        // Cache miss — hit MySQL
         UrlMapping urlMapping = urlMappingRepository
                 .findActiveByShortCode(shortCode, LocalDateTime.now())
                 .orElseThrow(() -> new UrlNotFoundException(
                         "Short URL not found or expired: " + shortCode));
 
         urlMappingRepository.incrementHitCount(shortCode, LocalDateTime.now());
-        log.info("Resolved short code: {} -> {}", shortCode, urlMapping.getOriginalUrl());
+        log.info("Cache miss — resolved from DB: {} -> {}", shortCode, urlMapping.getOriginalUrl());
+
+        // Cache for next time
+        redisCacheService.cacheUrl(shortCode, buildResponse(urlMapping));
 
         return urlMapping.getOriginalUrl();
     }
@@ -104,8 +134,21 @@ public class UrlShortenerService {
                 .findByShortCode(shortCode)
                 .orElseThrow(() -> new UrlNotFoundException(
                         "Short URL not found: " + shortCode));
-
         return buildResponse(urlMapping);
+    }
+
+    // ── Deactivate a short code (soft delete) ──
+    @Transactional
+    public void deactivateUrl(String shortCode) {
+        UrlMapping urlMapping = urlMappingRepository
+                .findByShortCode(shortCode)
+                .orElseThrow(() -> new UrlNotFoundException(
+                        "Short URL not found: " + shortCode));
+        urlMapping.setIsActive(false);
+        urlMappingRepository.save(urlMapping);
+        // Evict from cache so deactivated link stops working immediately
+        redisCacheService.evictCache(shortCode);
+        log.info("Deactivated and cache evicted for short code: {}", shortCode);
     }
 
     // ── Generate a unique Base62 short code ──

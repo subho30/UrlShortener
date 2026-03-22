@@ -14,6 +14,12 @@ public class ShortenRequest {
     )
     private String originalUrl;
 
+    @Pattern(
+            regexp = "^[a-zA-Z0-9-_]{6,12}$",
+            message = "Custom alias must be 6-12 characters — letters, numbers, hyphens and underscores only"
+    )
+    private String customAlias;
+
     // Optional — how many days until expiry. Defaults to 30 if not provided
     private Integer expiryDays;
 }
